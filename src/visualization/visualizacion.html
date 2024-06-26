@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de Riesgo de Deserción</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        #estudiantes { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        #estudiantes th, #estudiantes td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #estudiantes tr:nth-child(even) { background-color: #f2f2f2; }
+        #estudiantes th { background-color: #4CAF50; color: white; }
+        .chart-container { width: 80%; margin: 20px auto; }
+        .summary-container { width: 80%; margin: 20px auto; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Visualización de Riesgo de Deserción</h1>
+
+    <!-- Gráfico de Riesgo de Deserción -->
+    <div class="chart-container">
+        <canvas id="riesgoChart"></canvas>
+    </div>
+
+    <!-- Gráfico de Cantidad de Estudiantes por Estado -->
+    <div class="chart-container">
+        <canvas id="estadoChart"></canvas>
+    </div>
+
+    <!-- Tabla de Cantidad de Estudiantes por Estado -->
+    <div class="summary-container">
+        <h2>Resumen de Estudiantes por Estado</h2>
+        <table id="resumenEstudiantes">
+            <thead>
+                <tr>
+                    <th>Estado</th>
+                    <th>Cantidad</th>
+                </tr>
+            </thead>
+            <tbody id="resumenBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tabla Detallada de Estudiantes -->
+    <table id="estudiantes">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Riesgo de Deserción</th>
+                <th>Estado Actual</th>
+            </tr>
+        </thead>
+        <tbody id="estudiantesBody">
+        </tbody>
+    </table>
+
+    <script>
+        async function cargarDatos() {
+            const response = await fetch('../../resultados_desercion.json'); // Ruta al JSON de resultados
+            const data = await response.json();
+            return data;
+        }
+
+        function actualizarTabla(data) {
+            const tbody = document.getElementById('estudiantesBody');
+            tbody.innerHTML = '';
+            data.forEach(estudiante => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = estudiante.id;
+                row.insertCell(1).textContent = (estudiante.riesgo_desercion * 100).toFixed(2) + '%';
+                row.insertCell(2).textContent = estudiante.estado;
+            });
+        }
+
+        function crearGraficoRiesgo(data) {
+            const ctx = document.getElementById('riesgoChart').getContext('2d');
+            const riesgos = data.map(e => e.riesgo_desercion);
+            const bins = 10;
+            const histograma = Array(bins).fill(0);
+            riesgos.forEach(r => {
+                const bin = Math.min(Math.floor(r * bins), bins - 1);
+                histograma[bin]++;
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Array(bins).fill(0).map((_, i) => `${i * 10}-${(i + 1) * 10}%`),
+                    datasets: [{
+                        label: 'Número de Estudiantes',
+                        data: histograma,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Número de Estudiantes'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Riesgo de Deserción'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Distribución del Riesgo de Deserción'
+                        }
+                    }
+                }
+            });
+        }
+
+        function crearGraficoEstado(data) {
+            const ctx = document.getElementById('estadoChart').getContext('2d');
+            const conteoEstados = data.reduce((acc, estudiante) => {
+                acc[estudiante.estado] = (acc[estudiante.estado] || 0) + 1;
+                return acc;
+            }, {});
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(conteoEstados),
+                    datasets: [{
+                        label: 'Cantidad de Estudiantes',
+                        data: Object.values(conteoEstados),
+                        backgroundColor: 'rgba(153, 102, 255, 0.6)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Cantidad de Estudiantes'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Estado Actual'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Cantidad de Estudiantes por Estado'
+                        }
+                    }
+                }
+            });
+        }
+
+        function actualizarResumen(data) {
+            const conteoEstados = data.reduce((acc, estudiante) => {
+                acc[estudiante.estado] = (acc[estudiante.estado] || 0) + 1;
+                return acc;
+            }, {});
+
+            const tbody = document.getElementById('resumenBody');
+            tbody.innerHTML = '';
+            Object.entries(conteoEstados).forEach(([estado, cantidad]) => {
+                const row = tbody.insertRow();
+                row.insertCell(0).textContent = estado;
+                row.insertCell(1).textContent = cantidad;
+            });
+        }
+
+        async function inicializar() {
+            const data = await cargarDatos();
+            actualizarTabla(data);
+            crearGraficoRiesgo(data);
+            crearGraficoEstado(data);
+            actualizarResumen(data);
+        }
+
+        inicializar();
+    </script>
+</body>
+</html>
